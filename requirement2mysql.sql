@@ -25,7 +25,20 @@ GROUP BY al.name;
 
 -- /************* QUERY VALIDATION *************/
 
--- TODO: query 2.1 validation
+-- Replace airline name in WHERE clause to validate any of the results
+-- obtained in query 2.1
+SELECT
+    al.name,
+    pt.petrol_capacity,
+    r.minimum_petrol
+FROM
+    routeairline AS ra
+    INNER JOIN airline AS al on ra.airlineID = al.airlineID
+    INNER JOIN route AS r ON ra.routeID = r.routeID
+    INNER JOIN planetype AS pt ON ra.planeTypeID = pt.planetypeID
+WHERE
+    r.minimum_petrol > pt.petrol_capacity
+    AND al.name LIKE 'Aegean Airlines';
 
 -- /*********************************************
 -- / QUERY 2.2
@@ -46,18 +59,33 @@ SELECT
     END AS gradeRange,
     AVG(ma.duration) AS avgDuration
 FROM
-    mechanic AS me
-    INNER JOIN maintenance AS ma ON me.mechanicID = ma.mechanicID
+    maintenance AS ma
+    INNER JOIN mechanic me ON ma.mechanicID = me.mechanicID
+WHERE ma.maintenanceID IN (
+    -- Select those maintenance where less than 10 pieces have been replaced
+    SELECT auxMa.maintenanceID
+    FROM maintenance AS auxMa
+    INNER JOIN piecemaintenance AS auxPm ON auxMa.maintenanceID = auxPm.maintenanceID
+    GROUP BY auxMa.maintenanceID
+    HAVING COUNT(auxPm.maintenanceID) < 10
+)
 GROUP BY gradeRange
 ORDER BY gradeRange;
 
 -- /************* QUERY VALIDATION *************/
 
--- Select avg of grade range individually
--- Change range manually to check all of the ranges
-SELECT AVG(ma.duration)
-FROM maintenance AS ma INNER JOIN mechanic m ON ma.mechanicID = m.mechanicID
-WHERE m.grade BETWEEN 0 AND 1;
+-- Replace range to check all of the ranges individually
+SELECT
+    ma.duration,
+    COUNT(pm.maintenanceID) AS piecesReplaced,
+    me.grade
+FROM
+    maintenance AS ma
+    INNER JOIN mechanic me ON ma.mechanicID = me.mechanicID
+    INNER JOIN piecemaintenance AS pm ON ma.maintenanceID = pm.maintenanceID
+WHERE me.grade BETWEEN 0 AND 1
+GROUP BY ma.maintenanceID
+HAVING piecesReplaced < 10;
 
 -- /*********************************************
 -- / QUERY 2.3
@@ -110,48 +138,93 @@ SELECT
     al.name,
     al.airlineID,
     co.name,
-    MAX(r.time) AS longestRoute
+    MAX(r.time) AS longestRouteDuration
 FROM
-     country AS co,
-     routeairline AS ra
-        INNER JOIN airline AS al ON ra.airlineID = al.airlineID
-        INNER JOIN route r on ra.routeID = r.routeID
+    routeairline AS ra
+    INNER JOIN route r on ra.routeID = r.routeID
+    INNER JOIN airline AS al ON ra.airlineID = al.airlineID
+    INNER JOIN country AS co ON al.countryID = co.countryID
 
-        INNER JOIN airport AS ap_s ON r.departure_airportID = ap_s.airportID
-        INNER JOIN airport AS ap_d ON r.destination_airportID = ap_d.airportID
-        INNER JOIN city as ci_s ON ap_s.cityID = ci_s.cityID
-        INNER JOIN city as ci_d ON ap_d.cityID = ci_d.cityID
-        INNER JOIN country co_s on ci_s.countryID = co_s.countryID
-        INNER JOIN country co_d on ci_d.countryID = co_d.countryID
+    -- Relations for airports countries
+    INNER JOIN airport AS ap_s ON r.departure_airportID = ap_s.airportID
+    INNER JOIN airport AS ap_d ON r.destination_airportID = ap_d.airportID
+    INNER JOIN city as ci_s ON ap_s.cityID = ci_s.cityID
+    INNER JOIN city as ci_d ON ap_d.cityID = ci_d.cityID
 WHERE
-  -- Airlines should not have departing/entering routes from/to Spain
-    co.name LIKE 'Spain'
-    AND co_s.name NOT LIKE co.name
-    AND co_d.name NOT LIKE co.name
+    -- Active airlines
+    al.active LIKE 'Y'
+    -- Airlines should not have departing/entering routes from/to their country
+    AND ci_s.countryID <> al.countryID
+    AND ci_d.countryID <> al.countryID
 GROUP BY al.airlineID
-ORDER BY longestRoute DESC;
+ORDER BY longestRouteDuration DESC;
 
 -- /************* QUERY VALIDATION *************/
 
--- TODO: query 2.4 validation
+-- Select departure and destination airports of all routes from specified airline
+-- Replace airlineID in WHERE clause to validate any of the results from query 2.4
+SELECT
+    r.routeID,
+    al.active AS isAirlineActive,
+    co.name AS airlineCountry,
+    co_s.name AS departureAirport,
+    co_d.name AS destinationAirport
+FROM
+    routeairline AS ra
+    INNER JOIN airline AS al ON ra.airlineID = al.airlineID
+    INNER JOIN route AS r ON ra.routeID = r.routeID
+
+    -- airline country
+    INNER JOIN country AS co ON al.countryID = co.countryID
+
+    -- departure airport country
+    INNER JOIN airport AS ap_s ON r.departure_airportID = ap_s.airportID
+    INNER JOIN city AS ci_s ON ap_s.cityID = ci_s.cityID
+    INNER JOIN country AS co_s ON ci_s.countryID = co_s.countryID
+
+    -- destination airport country
+    INNER JOIN airport AS ap_d ON r.destination_airportID = ap_d.airportID
+    INNER JOIN city AS ci_d ON ap_d.cityID = ci_d.cityID
+    INNER JOIN country AS co_d ON ci_d.countryID = co_d.countryID
+WHERE al.airlineID = 3052;
 
 -- /*********************************************
 -- / QUERY 2.5
 -- /*********************************************
 
--- TODO: finish query 2.5
-
-SELECT pl.planeID,
-       pi.name,
-       COUNT(pi.pieceID) AS timesReplaced
-FROM plane AS pl
-         INNER JOIN maintenance AS m ON pl.planeID = m.planeID
-         INNER JOIN piecemaintenance AS pm ON m.maintenanceID = pm.maintenanceID
-         INNER JOIN piece AS pi ON pm.pieceID = pi.pieceID
+SELECT
+    pl.planeID,
+    pi.name,
+    COUNT(pi.pieceID) AS timesReplaced
+FROM
+    plane AS pl
+    INNER JOIN maintenance AS m ON pl.planeID = m.planeID
+    INNER JOIN piecemaintenance AS pm ON m.maintenanceID = pm.maintenanceID
+    INNER JOIN piece AS pi ON pm.pieceID = pi.pieceID
+GROUP BY pl.planeID, pi.pieceID, pi.cost
+HAVING timesReplaced > 1 AND (pi.cost * timesReplaced) > 0.5 * (
+    SELECT SUM(auxPi.cost)
+    FROM piece AS auxPi
+    INNER JOIN piecemaintenance AS auxPm ON auxPi.pieceID = auxPm.pieceID
+    INNER JOIN maintenance AS auxM ON auxPm.maintenanceID = auxM.maintenanceID
+    INNER JOIN plane AS auxPl ON auxM.planeID = auxPl.planeID AND auxPl.planeID = pl.planeID
+    WHERE auxPi.pieceID <> pi.pieceID
+);
 
 -- /************* QUERY VALIDATION *************/
 
--- TODO: query 2.5 validation
+-- Select all pieces replaced from specified plane
+SELECT
+    pi.name,
+    pi.cost
+FROM
+    maintenance AS ma
+    INNER JOIN piecemaintenance AS pm ON ma.maintenanceID = pm.maintenanceID
+    INNER JOIN piece AS pi ON pm.pieceID = pi.pieceID
+    INNER JOIN plane AS pl ON ma.planeID = pl.planeID
+WHERE pl.planeID = 2094;
+
+-- Rest of validation is done through excel
 
 -- /*********************************************
 -- / TRIGGER 2.6
