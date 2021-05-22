@@ -64,7 +64,7 @@ JOIN Flight AS f2 ON f2.flightID = ft2.flightID
 WHERE st.status = 'Strong Turbulences'AND f2.date > f.date;
 */
 
-SELECT * FROM Pilot;
+-- SELECT * FROM Pilot;
 
 #QUERY3
 SELECT copilot.flying_license, 
@@ -156,11 +156,11 @@ BEGIN
             WHERE ft.flightTicketID = NEW.flightTicketID;
 		INSERT INTO tempTicketError (SELECT ft2.flightTicketID FROM FlightTickets AS ft2 WHERE ft2.flightTicketID = NEW.flightTicketID);
 	END IF;
-END $$;
-DELIMITER $$;
+END $$
+DELIMITER ;
 
 DELIMITER //
-DROP EVENT IF EXISTS eventTicketError //
+DROP EVENT IF EXISTS eventTicketErroR //
 CREATE EVENT eventTicketError
 ON SCHEDULE EVERY 10 SECOND
 ON COMPLETION PRESERVE
@@ -169,7 +169,7 @@ ON COMPLETION PRESERVE
 		DELETE FROM FlightTickets WHERE flightTicketID IN (SELECT flightTicketID FROM tempTicketError);
 		DELETE FROM tempTicketError WHERE flightTicketID NOT IN (SELECT flightTicketID FROM flightTickets);
 	END //
-DELIMITER //;
+DELIMITER ;
 
 INSERT INTO FlightTickets (flightID, passengerID, date_of_purchase) 
 VALUES (4, 81383, DATE(NOW())) ;
@@ -189,8 +189,8 @@ CREATE TABLE CrimeSuspect(
     FOREIGN KEY (passengerID) REFERENCES Passenger(passengerID)
 );
 
-DELIMITER //
-DROP TRIGGER IF EXISTS creditCardCrime //
+DELIMITER ||
+DROP TRIGGER IF EXISTS creditCardCrime ||
 CREATE TRIGGER creditCardCrime
 AFTER INSERT ON Passenger
 FOR EACH ROW
@@ -198,8 +198,8 @@ BEGIN
 	IF NEW.creditCard IN (SELECT creditcard FROM Passenger) THEN
 		INSERT INTO CrimeSuspect (SELECT p.personID, p.name, p.surname, p.passport, p.phone_number FROM Person AS p WHERE NEW.passengerID = personID);
 	END IF;
-END //;
-DELIMITER //;
+END ||
+DELIMITER;
 
 SELECT creditcard FROM Passenger
 INSERT INTO Passenger (passengerID, creditCard) VALUES (1, '3551506430106933');
@@ -230,10 +230,10 @@ BEGIN
     FROM FlightTicket AS ft JOIN Person AS p ON p.personID = ft.passengerID
     WHERE ft.flightID = OLD.flightID);
 END $$;
-DELIMITER $$;
+DELIMITER $$
+DELIMITER ;
 
 #EVENT9
-
 DROP TABLE IF EXISTS DailyFlights;
 CREATE TABLE DailyFlights(
     date DATE,
@@ -242,22 +242,33 @@ CREATE TABLE DailyFlights(
 
 DROP TABLE IF EXISTS MonthlyAvgFlights;
 CREATE TABLE MonthlyAvgFlights(
-	date DATE,
+	month INT,
+    year INT,
     numFlights FLOAT
 );
 
 DROP EVENT IF EXISTS eventreq1;
 CREATE EVENT eventreq1
-    ON SCHEDULE EVERY 1 DAY
-    START '2021-01-01:00:00'
+    ON SCHEDULE EVERY 10 SECOND
+    -- STARTS '2021-01-01:00:00'
     DO
 		INSERT INTO DailyFlights(date, numFlights)
 			SELECT (f.date), COUNT(DISTINCT f.flightID)
 			FROM Flight AS f
             WHERE f.date = CURDATE()
-            GROUP BY (f.date);-- ;
+            GROUP BY (f.date);
+            
+DROP EVENT IF EXISTS eventreq2;
+CREATE EVENT eventreq2
+    ON SCHEDULE EVERY 30 SECOND
+    -- STARTS '2021-01-01:00:00'
+    DO
+		INSERT INTO MonthlyAvgFlights(month, year, numFlights)
+			SELECT MONTH(df.date), YEAR(df.date), AVG(df.numFlights)
+			FROM DailyFlights AS df
+            WHERE MONTH(df.date) = MONTH(CURDATE()) AND YEAR(df.date) = YEAR(CURDATE())
+            GROUP BY YEAR(df.date), MONTH(df.date);
 
-SELECT * FROM DailyFlights;
-
-
-SELECT MIN(f.date) FROM Flight AS f;
+SELECT * FROM DailyFlights LIMIT 200000;
+SELECT * FROM MonthlyAvgFlights;
+SELECT * FROM Flight ORDER BY date DESC;
