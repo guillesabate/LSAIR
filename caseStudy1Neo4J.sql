@@ -34,3 +34,4 @@ MATCH (a:Airport { airportID: ToInteger(csv.AirportID)}),
       (p:Plane { planeID: ToInteger(csv.PlaneID)})
 MERGE (a)-[l:ROUTE]->(p)
    
+MATCH (n) RETURN (n)
