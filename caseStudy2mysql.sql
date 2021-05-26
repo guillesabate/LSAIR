@@ -18,7 +18,7 @@ WHERE fa.flightID IN (SELECT fl.flightID
                              JOIN pilot pi on e.employeeID = pi.pilotID JOIN languageperson l on p.personID = l.personID
                              JOIN flight AS fl ON fl.pilotID = pi.pilotID
                         WHERE e.salary > 100000 AND e.retirement_date IS NOT NULL
-                        GROUP BY p.personID
+                        GROUP BY p.personID,fl.flightID
                         HAVING COUNT(DISTINCT l.languageID) > 3)
 GROUP BY fa.flightAttendantID;
 
@@ -34,6 +34,6 @@ WHERE f2.flightID = fa.flightID AND f2.pilotID = pil.pilotID AND fa.flightID IN 
         FROM person AS p JOIN employee e on p.personID = e.employeeID
             JOIN pilot pi on e.employeeID = pi.pilotID JOIN languageperson l on p.personID = l.personID, flight AS f
         WHERE e.salary > 100000 AND f.pilotID = pi.pilotID
-        GROUP BY p.personID
+        GROUP BY p.personID, f.flightID
         HAVING COUNT(DISTINCT l.languageID) > 3) AND fa.flightID = f2.flightID AND ai.airportID = r.destination_airportID AND ai2.airportID = r.departure_airportID
-GROUP BY pil.pilotID, fa.flightAttendantID;
+GROUP BY f2.flightID, pil.pilotID, fa.flightAttendantID;
