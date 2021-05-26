@@ -1,0 +1,53 @@
+-- /*********************************************
+-- / QUERY CS1 1
+-- /*********************************************
+
+Select the planes that has not flown to any airport and has less than 8 pieces 
+replacements
+
+MATCH (p:Plane)
+WHERE NOT (:Airport) -[:ROUTE]-> (p) AND p.maintenanceTimes < 8
+RETURN p
+
+-- /*********************************************
+-- / QUERY CS1 2
+-- /*********************************************
+
+Make a list planes and the number of airports that have been. Order the list by the 
+number of airports in a descendant order.
+
+MATCH (:Airport) -[:ROUTE]-> (p:Plane)
+RETURN p.planeID AS plane, count(*) AS numAirports 
+ORDER BY count(*) DESC
+
+-- /*********************************************
+-- / QUERY CS1 3
+-- /*********************************************
+
+Make a list of planes and the number of countries that have been if they have been in an 
+airport with an altitude value more than 100
+
+MATCH (c:Country) <-[:INCOUNTRY]- (:City) <-[:LOCATION]- (:Airport) -[:ROUTE]-> (p:Plane)
+WHERE a.altitude > 100
+RETURN p.planeID AS plane, count(DISTINCT c) AS numCountries 
+
+-- /*********************************************
+-- / QUERY CS1 4
+-- /*********************************************
+
+ Display the shortest route between “Greece” and “Singapore
+
+MATCH
+	(s:Country {name: 'Singapore'}),
+	(g:Country {name: 'Greece'}),
+	path = shortestPath((g) -[*]- (s))
+RETURN path
+
+-- /*********************************************
+-- / QUERY CS1 5
+-- /*********************************************
+
+Display the routes between “Laos” and “South Korea”.
+
+MATCH path = (l:Country {name: 'Laos'}) -[*]- (sk:Country {name: 'South Korea'})
+RETURN path
