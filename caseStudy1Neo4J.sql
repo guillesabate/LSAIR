@@ -24,7 +24,7 @@ MERGE (ci:City {cityID: (toInteger(csv.CityID)),
     name: csv.CityName,
     timezone: toInteger(csv.Timezone)})
 MERGE (a)-[l:LOCATION]->(ci)
-MERGE (ci)-[i:INCOUNTRY]->(c)
+MERGE (ci)-[i:IN_COUNTRY]->(c)
 
 
 LOAD CSV WITH HEADERS FROM
