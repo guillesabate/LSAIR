@@ -91,9 +91,9 @@ GROUP BY so.specialobjectID;
 
 SELECT p.personID, p.name, p.surname, COUNT(DISTINCT c.claimID) AS claims, COUNT(DISTINCT l.flightID) AS flights
 FROM claims AS c JOIN person AS p ON c.passengerID = p.personID JOIN luggage AS l ON c.passengerID = l.passengerID
-WHERE l.flightID NOT IN (SELECT r.flightTicketID
-                         FROM refund AS r
-                         WHERE r.accepted = 1)
+WHERE l.passengerID NOT IN (SELECT f.passengerID
+                         FROM refund AS r LEFT JOIN flighttickets f on r.flightTicketID = f.flightTicketID
+                         WHERE r.accepted = 1 AND f.passengerID = l.passengerID)
 GROUP BY p.personID
 HAVING claims > flights;
 
@@ -207,38 +207,133 @@ CREATE TABLE DailyLuggageStatistics(
     returned_claims INT
 );
 
+DROP EVENT IF EXISTS myeventDaily;
+CREATE EVENT myeventDaily
+    ON SCHEDULE AT CURRENT_TIMESTAMP() + INTERVAL 1 SECOND
+    DO
+    INSERT INTO DailyLuggageStatistics
+    SELECT (f.date), SUM(l.weight), (SELECT(COUNT(DISTINCT lu.luggageID))
+                            FROM luggage AS lu JOIN specialobjects AS sob ON lu.luggageID = sob.specialobjectID
+                            WHERE lu.flightID = f.flightID AND (sob.corrosive = 1 OR sob.flammable = 1 OR sob.fragile = 1)) AS 'Danger objects',
+                            (SELECT COUNT(DISTINCT c.claimID)
+                                                  FROM claims AS c LEFT JOIN lostobject AS los ON los.lostObjectID = c.claimID LEFT JOIN refund AS r ON c.claimID = r.refundID
+                                                  WHERE (c.date) = (f.date) AND (los.founded = 1 OR r.accepted = 1)) AS 'accepted or returned claims'
+FROM luggage AS l JOIN flight f on l.flightID = f.flightID
+WHERE f.date > DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND f.date NOT IN (SELECT date FROM DailyLuggageStatistics);
+#GROUP BY (f.date);
+
+DROP TABLE IF EXISTS MonthlyLuggageStatistics;
+
+CREATE TABLE MonthlyLuggageStatistics(
+    date VARCHAR(255) PRIMARY KEY,
+    n_kilos FLOAT,
+    n_danger_objects INT,
+    returned_claims INT
+);
+
+DROP EVENT IF EXISTS MonthlyLuggageStatistics;
+CREATE EVENT MonthlyLuggageStatistics
+    ON SCHEDULE AT CURRENT_TIMESTAMP() + INTERVAL 1 MONTH
+    DO
+    INSERT INTO MonthlyLuggageStatistics
+    SELECT DATE_FORMAT((f.date),'%Y-%m'), SUM(l.weight), (SELECT(COUNT(DISTINCT lu.luggageID))
+                                                          FROM luggage AS lu JOIN specialobjects AS sob  ON lu.luggageID = sob.specialobjectID
+                                                          WHERE lu.flightID = f.flightID AND (sob.corrosive = 1 OR sob.flammable = 1 OR sob.fragile = 1)),
+                                                         (SELECT COUNT(DISTINCT c.claimID)
+                                                          FROM claims AS c LEFT JOIN lostobject AS los ON los.lostObjectID = c.claimID
+                                                                           LEFT JOIN refund AS r ON c.claimID = r.refundID
+                                                                           WHERE MONTH(c.date) = MONTH(f.date)
+                                                                             AND YEAR(c.date) = YEAR(f.date)
+                                                                             AND (los.founded = 1 OR r.accepted = 1))
+
+    FROM luggage AS l JOIN flight f on l.flightID = f.flightID
+    WHERE MONTH(f.date) > MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
+      AND YEAR(f.date) = YEAR(CURDATE())
+      AND DATE_FORMAT((f.date),'%Y-%m') NOT IN (SELECT (date) FROM MonthlyLuggageStatistics);
+
+
+DROP TABLE IF EXISTS YearlyLuggageStatistics; 
+CREATE TABLE YearlyLuggageStatistics( 
+    date INT PRIMARY KEY, 
+    n_kilos FLOAT, 
+    n_danger_objects INT,
+    returned_claims INT 
+); 
+
+DROP EVENT IF EXISTS YearlyLuggageStatistics; 
+CREATE EVENT YearlyLuggageStatistics 
+    ON SCHEDULE AT CURRENT_TIMESTAMP() + INTERVAL 1 YEAR 
+    DO 
+    INSERT INTO YearlyLuggageStatistics 
+    SELECT YEAR(f.date), SUM(l.weight), (SELECT(COUNT(DISTINCT lu.luggageID)) 
+                                         FROM luggage AS lu JOIN specialobjects AS sob ON lu.luggageID = sob.specialobjectID 
+                                         WHERE lu.flightID = f.flightID  AND (sob.corrosive = 1 OR sob.flammable = 1 OR sob.fragile = 1)), 
+                                        (SELECT COUNT(DISTINCT c.claimID) 
+                                         FROM claims AS c LEFT JOIN lostobject AS los ON los.lostObjectID = c.claimID  
+                                                          LEFT JOIN refund AS r ON c.claimID = r.refundID 
+                                         WHERE YEAR(c.date) = YEAR(f.date) AND (los.founded = 1 OR r.accepted = 1))  
+    
+    FROM luggage AS l JOIN flight f on l.flightID = f.flightID 
+    WHERE YEAR(f.date) > YEAR(DATE_SUB(CURDATE(), INTERVAL 1 YEAR)) 
+      AND YEAR(f.date) NOT IN (SELECT YEAR(date) FROM YearlyLuggageStatistics); 
+
+
+#EVENT VALIDATION
+
+UPDATE flight SET date = CURDATE() WHERE flightID = 1;
+UPDATE luggage SET flightID = 1 WHERE luggageID = 1;
+
+SELECT * FROM luggage;
+SELECT * FROM flight WHERE flightID = 1;
+SELECT * FROM yearlyluggagestatistics;
+
 
 DROP TABLE IF EXISTS MonthlyLuggageStatistics;
 CREATE TABLE MonthlyLuggageStatistics(
-    date DATE PRIMARY KEY,
+    date VARCHAR(255) PRIMARY KEY,
     n_kilos FLOAT,
     n_danger_objects INT,
     returned_claims INT
 );
 
+
+DROP EVENT IF EXISTS MonthlyLuggageStatistics;
+CREATE EVENT MonthlyLuggageStatistics
+    ON SCHEDULE AT CURRENT_TIMESTAMP() + INTERVAL 1 SECOND
+    DO
+    INSERT INTO MonthlyLuggageStatistics
+    SELECT DATE_FORMAT((f.date),'%Y-%m'), SUM(l.weight), (SELECT(COUNT(DISTINCT lu.luggageID))
+                            FROM luggage AS lu JOIN specialobjects AS sob ON lu.luggageID = sob.specialobjectID
+                            WHERE lu.flightID = f.flightID AND (sob.corrosive = 1 OR sob.flammable = 1 OR sob.fragile = 1)) AS 'Danger objects',
+                            (SELECT COUNT(DISTINCT c.claimID)
+                                                  FROM claims AS c LEFT JOIN lostobject AS los ON los.lostObjectID = c.claimID LEFT JOIN refund AS r ON c.claimID = r.refundID
+                                                  WHERE MONTH(c.date) = MONTH(f.date) AND YEAR(c.date) = YEAR(f.date) AND (los.founded = 1 OR r.accepted = 1)) AS 'accepted or returned claims'
+FROM luggage AS l JOIN flight f on l.flightID = f.flightID
+WHERE MONTH(f.date) > MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH)) AND YEAR(f.date) = YEAR(CURDATE()) AND DATE_FORMAT((f.date),'%Y-%m') NOT IN (SELECT (date) FROM MonthlyLuggageStatistics);
+
+SELECT * FROM MonthlyLuggageStatistics;
 
 DROP TABLE IF EXISTS YearlyLuggageStatistics;
 CREATE TABLE YearlyLuggageStatistics(
-    date DATE PRIMARY KEY,
+    date INT PRIMARY KEY,
     n_kilos FLOAT,
     n_danger_objects INT,
     returned_claims INT
 );
 
-DROP EVENT IF EXISTS myevent;
-CREATE EVENT myevent
-    ON SCHEDULE EVERY 1 SECOND
-    STARTS '2001-01-01' + INTERVAL 10 SECOND
+DROP EVENT IF EXISTS YearlyLuggageStatistics;
+CREATE EVENT YearlyLuggageStatistics
+    ON SCHEDULE AT CURRENT_TIMESTAMP() + INTERVAL 1 SECOND
     DO
     INSERT INTO YearlyLuggageStatistics
     SELECT YEAR(f.date), SUM(l.weight), (SELECT(COUNT(DISTINCT lu.luggageID))
                             FROM luggage AS lu JOIN specialobjects AS sob ON lu.luggageID = sob.specialobjectID
-                            WHERE sob.corrosive = 1 OR sob.flammable = 1 OR sob.fragile = 1),
+                            WHERE lu.flightID = f.flightID AND (sob.corrosive = 1 OR sob.flammable = 1 OR sob.fragile = 1)) AS 'Danger objects',
                             (SELECT COUNT(DISTINCT c.claimID)
-                                                  FROM claims AS c, refund AS r
-                                                  WHERE YEAR(c.date) = YEAR(f.date) AND r.refundID = c.claimID AND r.accepted = 1)
-FROM luggage AS l LEFT JOIN flight f on l.flightID = f.flightID
-GROUP BY YEAR(f.date);
+                                                  FROM claims AS c LEFT JOIN lostobject AS los ON los.lostObjectID = c.claimID LEFT JOIN refund AS r ON c.claimID = r.refundID
+                                                  WHERE YEAR(c.date) = YEAR(f.date) AND (los.founded = 1 OR r.accepted = 1)) AS 'accepted or returned claims'
+FROM luggage AS l JOIN flight f on l.flightID = f.flightID
+WHERE YEAR(f.date) > YEAR(DATE_SUB(CURDATE(), INTERVAL 1 YEAR)) AND YEAR(f.date) NOT IN (SELECT YEAR(date) FROM YearlyLuggageStatistics);
 
 SELECT * FROM YearlyLuggageStatistics;
 
@@ -251,43 +346,67 @@ GROUP BY e.employeeID;
 
 #DATASET 1 (FALTA LO DE QUE ELS PILOTS SIGUIN NON RETIRED, PK LLAVORS NO SORTIA RES, JA QUE NO QUEDEN PILOTS ACTIUS QUE CUMPLEIXIN LES CONDICIONS)
 
-SELECT pi.pilotID, p.name, p.surname, p.email, p.sex, e.salary, e.years_working, COUNT(DISTINCT l.languageID) AS 'speaking languages', e.retirement_date
+SELECT pi.pilotID, p.name, p.surname, p.email, p.sex, e.salary, e.years_working, l.languageID
 FROM person AS p JOIN employee e on p.personID = e.employeeID
      JOIN pilot pi on e.employeeID = pi.pilotID JOIN languageperson l on p.personID = l.personID
-WHERE e.salary > 100000 AND e.retirement_date IS NOT NULL
-GROUP BY p.personID
-HAVING COUNT(DISTINCT l.languageID) > 3;
-
+WHERE e.salary > 100000 AND e.retirement_date IS NOT NULL AND l.personID IN (
+    SELECT l3.personID FROM languageperson l3 GROUP BY l3.personID HAVING COUNT(l3.languageID)>3)
+GROUP BY p.personID, l.languageID;
+#HAVING COUNT(DISTINCT l.languageID) > 3;
 
 SELECT * FROM pilot p, employee e WHERE p.pilotID = e.employeeID  AND p.pilotID = 132017;
 
+
 #DATASET 2
 
-SELECT fa.flightAttendantID, p2.name, p2.surname, p2.email, p2.sex, emp.salary, emp.years_working, COUNT(DISTINCT l2.languageID)
+SELECT fa.flightAttendantID, p2.name, p2.surname, p2.email, p2.sex, emp.salary, emp.years_working, l2.languageID
 FROM flight_flightattendant AS fa JOIN employee AS emp ON emp.employeeID = fa.flightAttendantID JOIN person p2 on emp.employeeID = p2.personID JOIN languageperson l2 on p2.personID = l2.personID
-WHERE fa.flightID IN (SELECT pi.pilotID, p.name, p.surname, p.email, p.sex, e.salary, e.years_working, COUNT(DISTINCT l.languageID) AS 'speaking languages', e.retirement_date
+WHERE fa.flightID IN (SELECT fl.flightID
                         FROM person AS p JOIN employee e on p.personID = e.employeeID
                              JOIN pilot pi on e.employeeID = pi.pilotID JOIN languageperson l on p.personID = l.personID
+                             JOIN flight AS fl ON fl.pilotID = pi.pilotID
                         WHERE e.salary > 100000 AND e.retirement_date IS NOT NULL
-                        GROUP BY p.personID
+                        GROUP BY p.personID,fl.flightID
                         HAVING COUNT(DISTINCT l.languageID) > 3)
-GROUP BY fa.flightAttendantID;
+GROUP BY fa.flightAttendantID, l2.languageID;
+
 
 #CONNECTION OF THE DATASETS
 
 SHOW VARIABLES LIKE 'secure_file_priv';
 
-SELECT f2.flightID, f2.date, ai.name AS destination_airportID, ai2.name AS departure_airportID
-INTO OUTFILE 'C:/ProgramData/MySQL/MySQL Server 8.0/Uploads/case_study2.csv'
-FIELDS TERMINATED BY ','
-ENCLOSED BY '"'
-LINES TERMINATED BY '\n'
+SELECT f2.flightID, f2.date, ai.name AS destination_airportID, ai2.name AS departure_airportID, fa.flightAttendantID, pil.pilotID
 FROM flight_flightattendant AS fa JOIN employee AS emp ON emp.employeeID = fa.flightAttendantID JOIN person p2 on emp.employeeID = p2.personID JOIN languageperson l2 on p2.personID = l2.personID,
-     flight AS f2 JOIN route r on f2.routeID = r.routeID, airport AS ai, airport AS ai2
-WHERE fa.flightID IN (SELECT f.flightID
+     flight AS f2 JOIN route r on f2.routeID = r.routeID, airport AS ai, airport AS ai2, pilot as pil
+WHERE f2.flightID = fa.flightID AND f2.pilotID = pil.pilotID AND fa.flightID IN (SELECT f.flightID
         FROM person AS p JOIN employee e on p.personID = e.employeeID
             JOIN pilot pi on e.employeeID = pi.pilotID JOIN languageperson l on p.personID = l.personID, flight AS f
         WHERE e.salary > 100000 AND f.pilotID = pi.pilotID
-        GROUP BY p.personID
+        GROUP BY p.personID, f.flightID
         HAVING COUNT(DISTINCT l.languageID) > 3) AND fa.flightID = f2.flightID AND ai.airportID = r.destination_airportID AND ai2.airportID = r.departure_airportID
-GROUP BY fa.flightAttendantID;
+GROUP BY f2.flightID, fa.flightAttendantID;
+
+#######################################################################
+
+SELECT f2.flightID, f2.date, ai.name AS destination_airportID, ai2.name AS departure_airportID, fa.flightAttendantID, pil.pilotID
+FROM flight_flightattendant AS fa JOIN employee AS emp ON emp.employeeID = fa.flightAttendantID JOIN person p2 on emp.employeeID = p2.personID JOIN languageperson l2 on p2.personID = l2.personID,
+     flight AS f2 JOIN route r on f2.routeID = r.routeID, airport AS ai, airport AS ai2, pilot as pil
+WHERE f2.flightID = fa.flightID AND f2.pilotID = pil.pilotID AND fa.flightID IN (SELECT f.flightID
+        FROM person AS p JOIN employee e on p.personID = e.employeeID
+            JOIN pilot pi on e.employeeID = pi.pilotID JOIN languageperson l on p.personID = l.personID, flight AS f
+        WHERE e.salary > 100000 AND f.pilotID = pi.pilotID
+        GROUP BY p.personID, f.flightID
+        HAVING COUNT(DISTINCT l.languageID) > 3) AND fa.flightID = f2.flightID AND ai.airportID = r.destination_airportID AND ai2.airportID = r.departure_airportID
+GROUP BY f2.flightID, pil.pilotID;
+
+
+
+#-----------------------------NEO4J----------------------------------------------------
+
+LOAD CSV WITH HEADERS FROM
+"file:///case_study2.csv" AS csv
+
+CREATE (p:Flight { flightID: ToInteger(csv.flightID),
+    date : csv.date,
+    destination_airportID : ToInteger(csv.destination_airportID),
+    departure_airportID :ToInteger(csv.departure_airportID)})
