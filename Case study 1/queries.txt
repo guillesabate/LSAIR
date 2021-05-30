@@ -6,7 +6,8 @@ Select the planes that has not flown to any airport and has less than 8 pieces
 replacements
 
 MATCH (p:Plane)
-WHERE NOT (:Airport) -[:ROUTE]-> (p) AND p.maintenanceTimes < 8
+WHERE NOT (:Airport) -[:ROUTE]-> (p) 
+AND (p.maintenanceTimes < 8 OR p.maintenanceTimes IS NULL)
 RETURN p
 
 -- /*********************************************
