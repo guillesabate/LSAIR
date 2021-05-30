@@ -2,9 +2,9 @@ USE LSAIR;
 SET GLOBAL event_scheduler = ON;
 
 #QUERY1
-(SELECT "MOST",
+(SELECT "MOST" AS "Anticipating",
  c.name,
- AVG((f.date - ft.date_of_purchase)*24) AS "Diference in hours",
+ AVG(TIMESTAMPDIFF(HOUR, ft.date_of_purchase, f.date))  AS "Diference in hours",
  AVG(ft.price)
 FROM Country AS c 
 JOIN Person AS p ON c.countryID = p.countryID 
@@ -17,9 +17,9 @@ HAVING
 	FROM Person AS pcount 
     JOIN Country AS cou ON cou.countryID = pcount.countryID
 	WHERE cou.countryID = c.countryID) > 300
-ORDER BY AVG(f.date - ft.date_of_purchase) DESC LIMIT 1)
+ORDER BY AVG(TIMESTAMPDIFF(HOUR, ft.date_of_purchase, f.date))  DESC LIMIT 1)
 UNION
-(SELECT "LEAST", c.name, AVG((f.date - ft.date_of_purchase)*24) AS "Diference in hours", AVG(ft.price) 
+(SELECT "LEAST" AS "Anticipating", c.name, AVG(TIMESTAMPDIFF(HOUR, ft.date_of_purchase, f.date))  AS "Diference in hours", AVG(ft.price) 
 FROM Country AS c 
 JOIN Person AS p ON c.countryID = p.countryID
 JOIN Passenger AS pa ON  p.personID = pa.passengerID JOIN FlightTickets AS ft ON ft.passengerID = pa.passengerID
@@ -30,7 +30,30 @@ HAVING
 	FROM Person AS pcount2 
     JOIN Country AS cou2 ON cou2.countryID = pcount2.countryID
 	WHERE cou2.countryID = c.countryID) > 300
-ORDER BY AVG(f.date - ft.date_of_purchase) ASC LIMIT 1);
+ORDER BY AVG(TIMESTAMPDIFF(HOUR, ft.date_of_purchase, f.date))  ASC LIMIT 1);
+
+#QUERY1CHECK
+/*
+SELECT COUNT(DISTINCT pcount2.personID), cou2.name
+FROM Person AS pcount2 
+JOIN Country AS cou2 ON cou2.countryID = pcount2.countryID
+WHERE cou2.name LIKE "Cameroon" OR cou2.name LIKE "Ghana"
+GROUP BY cou2.countryID;
+*/
+/*
+SELECT c.name, AVG(TIMESTAMPDIFF(HOUR, ft.date_of_purchase, f.date))  AS "Diference in hours", AVG(ft.price) 
+FROM Country AS c 
+JOIN Person AS p ON c.countryID = p.countryID
+JOIN Passenger AS pa ON  p.personID = pa.passengerID JOIN FlightTickets AS ft ON ft.passengerID = pa.passengerID
+JOIN Flight AS f ON f.flightID = ft.flightID
+GROUP BY c.countryID
+HAVING
+	(SELECT COUNT(DISTINCT pcount2.personID) 
+	FROM Person AS pcount2 
+    JOIN Country AS cou2 ON cou2.countryID = pcount2.countryID
+	WHERE cou2.countryID = c.countryID) > 300
+ORDER BY AVG(TIMESTAMPDIFF(HOUR, ft.date_of_purchase, f.date)) ASC;
+*/
 
 #QUERY2
 SELECT DISTINCT p.personID, p.name, p.surname, p.born_date
@@ -64,8 +87,6 @@ JOIN Flight AS f2 ON f2.flightID = ft2.flightID
 WHERE st.status = 'Strong Turbulences'AND f2.date > f.date;
 */
 
--- SELECT * FROM Pilot;
-
 #QUERY3
 SELECT copilot.flying_license, 
 (SELECT COUNT(fli.flightID) 
@@ -92,25 +113,71 @@ JOIN Pilot AS copi1 ON copi1.pilotID = pi.copilotID
 WHERE copi1.pilotID = copilot.pilotID) DESC,
 copilot.grade DESC;
 
+#QUERY3CHECK
+/*
+(SELECT AVG(p.grade) + 2 FROM Pilot AS p);
+
+SELECT COUNT(fli.flightID), pi.flying_license, copi1.grade FROM Pilot AS pi 
+JOIN Flight AS fli ON fli.pilotID = pi.pilotID
+JOIN Pilot AS copi1 ON copi1.pilotID = pi.copilotID
+GROUP BY copi1.pilotID
+ORDER BY COUNT(fli.flightID) DESC;
+*/
+
 #QUERY4
 SELECT p.name, p.surname, p.born_date
 FROM Person AS p
+JOIN Passenger AS pa ON p.personID = pa.passengerID 
+JOIN FlightTickets AS ft ON ft.passengerID = pa.passengerID
 WHERE YEAR(now()) - YEAR(p.born_date) > 100 AND p.personID NOT IN
 (SELECT p.personID
-FROM Country AS c JOIN Person AS p ON c.countryID = p.countryID 
+FROM Person AS p
 JOIN Passenger AS pa ON p.personID = pa.passengerID JOIN FlightTickets AS ft ON ft.passengerID = pa.passengerID
-JOIN Flight AS f ON f.flightID = ft.flightID JOIN Flight_FlightAttendant AS ffa ON ft.flightID = ffa.flightID
-JOIN Flight_Attendant AS fa ON ffa.flightAttendantID = fa.flightAttendantID JOIN Person AS fap ON fap.personID = fa.flightAttendantID
-JOIN Country AS fac ON fap.countryID = fac.countryID
-WHERE c.countryID = fac.countryID);
+JOIN Flight AS f ON f.flightID = ft.flightID JOIN Flight_FlightAttendant AS fa ON ft.flightID = fa.flightID
+JOIN Person AS fap ON fap.personID = fa.flightAttendantID
+JOIN LanguagePerson AS lp1 ON lp1.personID = p.personID JOIN LanguagePerson AS lp2 ON lp2.personID = fap.personID
+WHERE lp1.languageID = lp2.languageID);
 
-#QUERY5
-SELECT p.name, p.surname
+#QUERY4CHECK
+/*
+SELECT p.name, p.surname, p.born_date
+FROM Person AS p
+WHERE YEAR(now()) - YEAR(p.born_date) > 100
+ORDER BY p.born_date DESC;
+
+SELECT l.name, l.languageID FROM Language AS l WHERE l.languageID NOT IN
+(SELECT lp1.languageID
+FROM Person AS p
+JOIN Passenger AS pa ON p.personID = pa.passengerID JOIN FlightTickets AS ft ON ft.passengerID = pa.passengerID
+JOIN Flight AS f ON f.flightID = ft.flightID JOIN Flight_FlightAttendant AS fa ON ft.flightID = fa.flightID
+JOIN Person AS fap ON fap.personID = fa.flightAttendantID
+JOIN LanguagePerson AS lp1 ON lp1.personID = p.personID JOIN LanguagePerson AS lp2 ON lp2.personID = fap.personID
+WHERE lp1.languageID = lp2.languageID);
+
+SELECT p.name, p.surname, p.born_date, l.name
+FROM Person AS p
+JOIN Passenger AS pa ON p.personID = pa.passengerID 
+JOIN FlightTickets AS ft ON ft.passengerID = pa.passengerID
+JOIN LanguagePerson AS lp ON lp.personID = p.personID
+JOIN Language AS l ON l.languageID = lp.languageID
+WHERE YEAR(now()) - YEAR(p.born_date) > 100 AND p.personID NOT IN
+(SELECT p.personID
+FROM Person AS p
+JOIN Passenger AS pa ON p.personID = pa.passengerID JOIN FlightTickets AS ft ON ft.passengerID = pa.passengerID
+JOIN Flight AS f ON f.flightID = ft.flightID JOIN Flight_FlightAttendant AS fa ON ft.flightID = fa.flightID
+JOIN Person AS fap ON fap.personID = fa.flightAttendantID
+JOIN LanguagePerson AS lp1 ON lp1.personID = p.personID JOIN LanguagePerson AS lp2 ON lp2.personID = fap.personID
+WHERE lp1.languageID = lp2.languageID) ORDER BY p.born_date DESC;
+*/
+
+
+#QUERY 5
+SELECT p.name, p.surname, p.personID
 FROM Person AS p
 WHERE p.personID IN
 (SELECT p.personID
 FROM Person AS p JOIN Passenger AS pa ON p.personID = pa.passengerID JOIN FlightTickets AS ft ON ft.passengerID = pa.passengerID
-WHERE NOT ft.business = 1)
+WHERE ft.business = 1)
 AND p.personID NOT IN
 (SELECT p.personID
 FROM Person AS p JOIN Passenger AS pa ON p.personID = pa.passengerID JOIN FlightTickets AS ft ON ft.passengerID = pa.passengerID
@@ -121,7 +188,31 @@ AND p.personID IN
 FROM Person AS p JOIN Passenger AS pa ON p.personID = pa.passengerID JOIN FlightTickets AS ft ON ft.passengerID = pa.passengerID
 JOIN Checkin AS c ON c.flightTicketID = ft.flightTicketID
 GROUP BY p.personID
-HAVING COUNT(c.checkinID) >= 2);
+HAVING COUNT(c.checkinID) >= 2)
+GROUP BY p.personID
+ORDER BY p.personID ASC;
+
+#QUERY5CHECK
+/*
+SELECT p.personID
+FROM Person AS p JOIN Passenger AS pa ON p.personID = pa.passengerID JOIN FlightTickets AS ft ON ft.passengerID = pa.passengerID
+WHERE ft.business = 1 GROUP BY p.personID ORDER BY p.personID ASC; 
+
+SELECT p.personID
+FROM Person AS p
+WHERE p.personID NOT IN (SELECT p.personID
+FROM Person AS p JOIN Passenger AS pa ON p.personID = pa.passengerID JOIN FlightTickets AS ft ON ft.passengerID = pa.passengerID
+JOIN Checkin AS c ON c.flightTicketID = ft.flightTicketID
+WHERE NOT (c.seat = 'F' OR c.seat = 'A'))
+GROUP BY p.personID ORDER BY p.personID ASC;
+
+SELECT p.personID
+FROM Person AS p JOIN Passenger AS pa ON p.personID = pa.passengerID JOIN FlightTickets AS ft ON ft.passengerID = pa.passengerID
+JOIN Checkin AS c ON c.flightTicketID = ft.flightTicketID
+GROUP BY p.personID 
+HAVING COUNT(c.checkinID) >= 2
+ORDER BY p.personID ASC;
+*/
 
 #TRIGGER6
 DROP TABLE IF EXISTS TicketError;
@@ -160,7 +251,7 @@ END $$
 DELIMITER ;
 
 DELIMITER //
-DROP EVENT IF EXISTS eventTicketErroR //
+DROP EVENT IF EXISTS eventTicketError //
 CREATE EVENT eventTicketError
 ON SCHEDULE EVERY 10 SECOND
 ON COMPLETION PRESERVE
@@ -175,6 +266,7 @@ INSERT INTO FlightTickets (flightID, passengerID, date_of_purchase)
 VALUES (4, 81383, DATE(NOW())) ;
 
 -- SELECT * FROM TicketError;
+SELECT * FROM Flight WHERE flightID = 4;
 SELECT * FROM FlightTickets WHERE flightID = 4 AND passengerID = 81383;
 SELECT * FROM tempTicketError;
 
@@ -199,11 +291,14 @@ BEGIN
 		INSERT INTO CrimeSuspect (SELECT p.personID, p.name, p.surname, p.passport, p.phone_number FROM Person AS p WHERE NEW.passengerID = personID);
 	END IF;
 END ||
-DELIMITER;
+DELIMITER ;
 
-SELECT creditcard FROM Passenger
+SELECT DISTINCT creditcard FROM Passenger LIMIT 3;
 INSERT INTO Passenger (passengerID, creditCard) VALUES (1, '3551506430106933');
+INSERT INTO Passenger (passengerID, creditCard) VALUES (2, '6767477861265965621');
 SELECT * FROM CrimeSuspect;
+
+
 
 #TRIGGER8
 DROP TABLE IF EXISTS CancelledFlightsMails;
@@ -215,23 +310,53 @@ CREATE TABLE CancelledFlightsMails(
     priceOfTicket FLOAT,
     isBusinessTicket INT,
     commission INT,
-    FOREIGN KEY (personID) REFERENCES Person(personID),
-    FOREIGN KEY (flightID) REFERENCES Flight(flightID)
+    FOREIGN KEY (personID) REFERENCES Person(personID)
+);
+
+DROP TABLE IF EXISTS CancelledFlightsCommissions;
+CREATE TABLE CancelledFlightsCommissions(
+    flightID BIGINT UNSIGNED,
+	refund BIGINT
 );
 
 DELIMITER $$
 DROP TRIGGER IF EXISTS deletedFlight $$
 CREATE TRIGGER deletedFlight
-AFTER DELETE ON Flight
+BEFORE DELETE ON Flight
 FOR EACH ROW
 BEGIN
 	INSERT INTO CancelledFlightsMails 
-    (SELECT ft.passengerID, ft.flightID, p.namePerson, p.emailPerson, ft.priceOfTicket, ft.isBusinessTicket 
-    FROM FlightTicket AS ft JOIN Person AS p ON p.personID = ft.passengerID
-    WHERE ft.flightID = OLD.flightID);
-END $$;
-DELIMITER $$
+    (SELECT ft.passengerID, ft.flightID, p.name, p.email, ft.price, ft.business, TIMESTAMPDIFF(HOUR, ft.date_of_purchase, f.date)
+    FROM FlightTickets AS ft JOIN Person AS p ON p.personID = ft.passengerID JOIN Flight AS f ON f.flightID = ft.flightID
+    WHERE f.flightID = OLD.flightID);
+    
+    INSERT INTO CancelledFlightsCommissions
+	(SELECT c.flightID, c.priceOfTicket * c.priceOfTicket * (c.commission + 1)
+    FROM CancelledFlightsMails AS c
+    WHERE c.flightID = OLD.flightID AND c.flightID NOT IN (SELECT flightID FROM CancelledFlightsCommissions));
+	
+	DELETE FROM Flight_FlightAttendant WHERE flightID = OLD.flightID;
+	DELETE FROM Checkin WHERE flightTicketID IN (SELECT flightTicketID FROM FlightTickets WHERE flightID = OLD.flightID);
+	DELETE FROM Refund WHERE flightTicketID IN (SELECT flightTicketID FROM FlightTickets WHERE flightID = OLD.flightID);
+	DELETE FROM FlightTickets WHERE flightID = OLD.flightID;
+	DELETE FROM SpecialObjects WHERE SpecialObjectID IN (SELECT luggageID FROM Luggage WHERE flightID = OLD.flightID);
+	DELETE FROM CheckedLuggage WHERE CheckedLuggageID IN (SELECT luggageID FROM Luggage WHERE flightID = OLD.flightID);
+	DELETE FROM HandLuggage WHERE HandLuggageID IN (SELECT luggageID FROM Luggage WHERE flightID = OLD.flightID);
+	DELETE FROM LostObject WHERE LuggageID IN (SELECT luggageID FROM Luggage WHERE flightID = OLD.flightID);
+	DELETE FROM Luggage WHERE flightID = OLD.flightID;
+    DELETE FROM FlightLuggageHandler WHERE flightID = OLD.flightID;
+	DELETE FROM TicketError WHERE flightID = OLD.flightID;
+	
+END $$
 DELIMITER ;
+
+#CHECK TRIGGER 8
+DELETE FROM Flight WHERE flightID = 13;
+
+SELECT * FROM CancelledFlightsMails;
+SELECT * FROM CancelledFlightsCommissions;
+
+
 
 #EVENT9
 DROP TABLE IF EXISTS DailyFlights;
@@ -268,7 +393,39 @@ CREATE EVENT eventreq2
 			FROM DailyFlights AS df
             WHERE MONTH(df.date) = MONTH(CURDATE()) AND YEAR(df.date) = YEAR(CURDATE())
             GROUP BY YEAR(df.date), MONTH(df.date);
+            
+            
+
+#CHECKEVENT9
+/*
+DROP EVENT IF EXISTS eventreq1;
+CREATE EVENT eventreq1
+    ON SCHEDULE EVERY 10 SECOND
+    -- STARTS '2021-01-01:00:00'
+    DO
+		INSERT INTO DailyFlights(date, numFlights)
+			SELECT (f.date), COUNT(DISTINCT f.flightID)
+			FROM Flight AS f
+            WHERE MONTH(f.date) = 12 AND YEAR(f.date) = 2020
+            GROUP BY (f.date);
+            
+DROP EVENT IF EXISTS eventreq2;
+CREATE EVENT eventreq2
+    ON SCHEDULE EVERY 30 SECOND
+    -- STARTS '2021-01-01:00:00'
+    DO
+		INSERT INTO MonthlyAvgFlights(month, year, numFlights)
+			SELECT MONTH(df.date), YEAR(df.date), AVG(df.numFlights)
+			FROM DailyFlights AS df
+            WHERE MONTH(df.date) = 12 AND YEAR(df.date) = 2020
+            GROUP BY YEAR(df.date), MONTH(df.date);
+
+SELECT * FROM DailyFlights LIMIT 200000;
+SELECT * FROM MonthlyAvgFlights;
+SELECT * FROM Flight WHERE MONTH(date) = 12 AND YEAR(date) = 2020 ORDER BY date DESC;
 
 SELECT * FROM DailyFlights LIMIT 200000;
 SELECT * FROM MonthlyAvgFlights;
 SELECT * FROM Flight ORDER BY date DESC;
+*/
+
