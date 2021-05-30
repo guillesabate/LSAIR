@@ -8,25 +8,25 @@ MERGE (n)-[:SPEAKS]->(l)
 #####DATASET 2#####################
 
 LOAD CSV WITH HEADERS FROM 'file:///dataset2.csv' as row  
-
 MERGE (n:FlightAttendant {flightAttendantID: toInteger(row.flightAttendantID),name:row.name, surname: row.email, sex: row.sex, salary: toInteger(row.salary),years_working: toInteger(row.years_working)}) 
 MERGE (l:Language{name:row.language_name})
 MERGE (n)-[:SPEAKS]->(l)
 
+
 #####DATASET 3#####################
 
 LOAD CSV WITH HEADERS FROM 'file:///dataset3.csv' as row  
+MERGE (dep:Airport {airportId:toInteger(row.departure_airportID) })
 MERGE (n:Flight {flightID: toInteger(row.flightID),date:row.date}) 
 MERGE (dest:Airport{airportId:toInteger(row.destination_airportID)})
-MERGE (dep:Airport{airportId:toInteger(row.departure_airportID)})
-MERGE (n)-[:DESTINATED]->(dest)
 MERGE (n)-[:DEPARTS]->(dep)
+MERGE (n)-[:DESTINATED]->(dest)
 
 #####DATASET 4#####################
 
 LOAD CSV WITH HEADERS FROM 'file:///dataset4.csv' as row  
-MATCH (n:Flight {flightID: toInteger(row.flightID)}) 
 MATCH (p:Pilot {pilotID: toInteger(row.pilotID)})
+MATCH (n:Flight {flightID: toInteger(row.flightID)}) 
 MERGE (p)-[:FLIGHTS]->(n)
 
 #####DATASET 5#####################
