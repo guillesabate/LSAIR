@@ -6,7 +6,11 @@ FROM person AS p JOIN employee e on p.personID = e.employeeID
 
 WHERE e.salary > 100000 AND e.retirement_date IS NOT NULL AND l.personID IN (
     SELECT l3.personID FROM languageperson l3 GROUP BY l3.personID HAVING COUNT(l3.languageID)>3)
-GROUP BY p.personID, l.languageID;
+GROUP BY p.personID, l.languageID
+INTO OUTFILE 'C:/Users/josep/AppData/Local/Programs/Neo4j Desktop/relate-data/dbmss/dbms-051e915e-2eab-4bbb-b37c-0afe42890e39/import/dataset1.csv'
+FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n';
 
 ####DATASET 2####################
 
@@ -19,7 +23,11 @@ WHERE fa.flightID IN (SELECT fl.flightID
                         WHERE e.salary > 100000 AND e.retirement_date IS NOT NULL
                         GROUP BY p.personID,fl.flightID
                         HAVING COUNT(DISTINCT l.languageID) > 3)
-GROUP BY fa.flightAttendantID, l2.languageID;
+GROUP BY fa.flightAttendantID, l2.languageID
+INTO OUTFILE 'C:/Users/josep/AppData/Local/Programs/Neo4j Desktop/relate-data/dbmss/dbms-051e915e-2eab-4bbb-b37c-0afe42890e39/import/dataset2.csv'
+FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n';
 
 ####DATASET 3####################
 
@@ -32,8 +40,11 @@ WHERE f2.flightID = fa.flightID AND f2.pilotID = pil.pilotID AND fa.flightID IN 
         WHERE e.salary > 100000 AND f.pilotID = pi.pilotID
         GROUP BY p.personID, f.flightID
         HAVING COUNT(DISTINCT l.languageID) > 3) AND fa.flightID = f2.flightID AND ai.airportID = r.destination_airportID AND ai2.airportID = r.departure_airportID
-GROUP BY f2.flightID, fa.flightAttendantID;
-
+GROUP BY f2.flightID, fa.flightAttendantID
+INTO OUTFILE 'C:/Users/josep/AppData/Local/Programs/Neo4j Desktop/relate-data/dbmss/dbms-051e915e-2eab-4bbb-b37c-0afe42890e39/import/dataset3.csv'
+FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n';
 
 ####DATASET 4####################
 
@@ -46,7 +57,11 @@ WHERE f2.flightID = fa.flightID AND f2.pilotID = pil.pilotID AND fa.flightID IN 
         WHERE e.salary > 100000 AND f.pilotID = pi.pilotID
         GROUP BY p.personID, f.flightID
         HAVING COUNT(DISTINCT l.languageID) > 3) AND fa.flightID = f2.flightID AND ai.airportID = r.destination_airportID AND ai2.airportID = r.departure_airportID
-GROUP BY f2.flightID, pil.pilotID;
+GROUP BY f2.flightID, pil.pilotID
+INTO OUTFILE 'C:/Users/josep/AppData/Local/Programs/Neo4j Desktop/relate-data/dbmss/dbms-051e915e-2eab-4bbb-b37c-0afe42890e39/import/dataset4.csv'
+FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n';
 
 
 ####DATASET 5####################
@@ -60,4 +75,8 @@ WHERE f2.flightID = fa.flightID AND f2.pilotID = pil.pilotID AND fa.flightID IN 
         WHERE e.salary > 100000 AND f.pilotID = pi.pilotID
         GROUP BY p.personID, f.flightID
         HAVING COUNT(DISTINCT l.languageID) > 3) AND fa.flightID = f2.flightID AND ai.airportID = r.destination_airportID AND ai2.airportID = r.departure_airportID
-GROUP BY f2.flightID, fa.flightAttendantID;
+GROUP BY f2.flightID, fa.flightAttendantID
+INTO OUTFILE 'C:/Users/josep/AppData/Local/Programs/Neo4j Desktop/relate-data/dbmss/dbms-051e915e-2eab-4bbb-b37c-0afe42890e39/import/dataset5.csv'
+FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n';
