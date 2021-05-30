@@ -29,6 +29,8 @@ GROUP BY al.name;
 -- obtained in query 2.1
 SELECT
     al.name,
+    c_s.name AS departureAirport,
+    c_d.name AS destinationAirport,
     pt.petrol_capacity,
     r.minimum_petrol
 FROM
@@ -36,27 +38,25 @@ FROM
     INNER JOIN airline AS al on ra.airlineID = al.airlineID
     INNER JOIN route AS r ON ra.routeID = r.routeID
     INNER JOIN planetype AS pt ON ra.planeTypeID = pt.planetypeID
+
+    -- relations for country
+    INNER JOIN airport AS ap_s ON r.departure_airportID = ap_s.airportID
+    INNER JOIN airport AS ap_d ON r.destination_airportID = ap_d.airportID
+    INNER JOIN city as ci_s ON ap_s.cityID = ci_s.cityID
+    INNER JOIN city as ci_d ON ap_d.cityID = ci_d.cityID
+    INNER JOIN country c_s ON ci_s.countryID = c_s.countryID
+    INNER JOIN country c_d ON ci_d.countryID = c_d.countryID
 WHERE
-    r.minimum_petrol > pt.petrol_capacity
-    AND al.name LIKE 'Aegean Airlines';
+    ci_s.countryID <> ci_d.countryID
+    AND r.minimum_petrol > pt.petrol_capacity
+    AND al.name LIKE 'Aer Lingus';
 
 -- /*********************************************
 -- / QUERY 2.2
 -- /*********************************************
 
 SELECT
-    CASE
-        WHEN me.grade BETWEEN 0 AND 1 THEN '0-1'
-        WHEN me.grade BETWEEN 1 AND 2 THEN '1-2'
-        WHEN me.grade BETWEEN 2 AND 3 THEN '2-3'
-        WHEN me.grade BETWEEN 3 AND 4 THEN '3-4'
-        WHEN me.grade BETWEEN 4 AND 5 THEN '4-5'
-        WHEN me.grade BETWEEN 5 AND 6 THEN '5-6'
-        WHEN me.grade BETWEEN 6 AND 7 THEN '6-7'
-        WHEN me.grade BETWEEN 7 AND 8 THEN '7-8'
-        WHEN me.grade BETWEEN 8 AND 9 THEN '8-9'
-        WHEN me.grade BETWEEN 9 AND 10 THEN '9-10'
-    END AS gradeRange,
+    CONCAT(me.grade - me.grade MOD 1 , '-', (me.grade - me.grade MOD 1) + 1) AS gradeRange,
     AVG(ma.duration) AS avgDuration
 FROM
     maintenance AS ma
@@ -83,7 +83,7 @@ FROM
     maintenance AS ma
     INNER JOIN mechanic me ON ma.mechanicID = me.mechanicID
     INNER JOIN piecemaintenance AS pm ON ma.maintenanceID = pm.maintenanceID
-WHERE me.grade BETWEEN 0 AND 1
+WHERE me.grade BETWEEN 2 AND 3
 GROUP BY ma.maintenanceID
 HAVING piecesReplaced < 10;
 
@@ -99,7 +99,7 @@ FROM
     airport AS ap
     INNER JOIN route AS r ON ap.airportID = r.departure_airportID
     INNER JOIN city AS ci ON ap.cityID = ci.cityID
-GROUP BY ci.countryID, ap.airportID
+GROUP BY ap.airportID
 HAVING avgDist > (
     -- Select avg of airports in the same country
     SELECT AVG(auxR.distance) AS auxAvgDist
@@ -107,8 +107,7 @@ HAVING avgDist > (
     INNER JOIN route AS auxR ON auxAp.airportID = auxR.departure_airportID
     -- Airports from the same country
     INNER JOIN city as auxCi ON auxAp.cityID = auxCi.cityID AND ci.countryID = auxCi.countryID
-)
-ORDER BY avgDist;
+);
 
 -- /************* QUERY VALIDATION *************/
 
@@ -122,7 +121,7 @@ GROUP BY ap.airportID
 ORDER BY  ap.airportID;
 
 -- Select avg of routes departing from airports in the same country
-SELECT  co.countryID, AVG(r.distance) AS auxAvgDist
+SELECT co.countryID, AVG(r.distance) AS auxAvgDist
 FROM country AS co
     LEFT JOIN city AS c ON co.countryID = c.countryID
     LEFT JOIN airport AS ap ON c.cityID = ap.cityID
@@ -144,18 +143,26 @@ FROM
     INNER JOIN route r on ra.routeID = r.routeID
     INNER JOIN airline AS al ON ra.airlineID = al.airlineID
     INNER JOIN country AS co ON al.countryID = co.countryID
-
-    -- Relations for airports countries
-    INNER JOIN airport AS ap_s ON r.departure_airportID = ap_s.airportID
-    INNER JOIN airport AS ap_d ON r.destination_airportID = ap_d.airportID
-    INNER JOIN city as ci_s ON ap_s.cityID = ci_s.cityID
-    INNER JOIN city as ci_d ON ap_d.cityID = ci_d.cityID
 WHERE
     -- Active airlines
     al.active LIKE 'Y'
     -- Airlines should not have departing/entering routes from/to their country
-    AND ci_s.countryID <> al.countryID
-    AND ci_d.countryID <> al.countryID
+    AND al.airlineID NOT IN (
+        SELECT auxAl.airlineID
+        FROM routeairline AS auxRa
+            INNER JOIN route auxR on auxRa.routeID = auxR.routeID
+            INNER JOIN airline AS auxAl ON auxRa.airlineID = auxAl.airlineID
+            INNER JOIN country AS auxCo ON auxAl.countryID = auxCo.countryID
+
+            -- Relations for airports countries
+            INNER JOIN airport AS ap_s ON auxR.departure_airportID = ap_s.airportID
+            INNER JOIN airport AS ap_d ON auxR.destination_airportID = ap_d.airportID
+            INNER JOIN city as ci_s ON ap_s.cityID = ci_s.cityID
+            INNER JOIN city as ci_d ON ap_d.cityID = ci_d.cityID
+        WHERE
+            ci_s.countryID = auxAl.countryID
+            OR ci_d.countryID = auxAl.countryID
+        )
 GROUP BY al.airlineID
 ORDER BY longestRouteDuration DESC;
 
@@ -186,7 +193,7 @@ FROM
     INNER JOIN airport AS ap_d ON r.destination_airportID = ap_d.airportID
     INNER JOIN city AS ci_d ON ap_d.cityID = ci_d.cityID
     INNER JOIN country AS co_d ON ci_d.countryID = co_d.countryID
-WHERE al.airlineID = 3052;
+WHERE al.airlineID = 4464;
 
 -- /*********************************************
 -- / QUERY 2.5
@@ -203,6 +210,7 @@ FROM
     INNER JOIN piece AS pi ON pm.pieceID = pi.pieceID
 GROUP BY pl.planeID, pi.pieceID, pi.cost
 HAVING timesReplaced > 1 AND (pi.cost * timesReplaced) > 0.5 * (
+    -- Sum of all of the other pieces
     SELECT SUM(auxPi.cost)
     FROM piece AS auxPi
     INNER JOIN piecemaintenance AS auxPm ON auxPi.pieceID = auxPm.pieceID
@@ -222,9 +230,9 @@ FROM
     INNER JOIN piecemaintenance AS pm ON ma.maintenanceID = pm.maintenanceID
     INNER JOIN piece AS pi ON pm.pieceID = pi.pieceID
     INNER JOIN plane AS pl ON ma.planeID = pl.planeID
-WHERE pl.planeID = 2094;
+WHERE pl.planeID = 80;
 
--- Rest of validation is done through excel
+-- Rest of validation is done through excel / manual computations
 
 -- /*********************************************
 -- / TRIGGER 2.6
@@ -254,13 +262,46 @@ BEGIN
 
     -- Delete other data from the cancelled route (RouteAirline)
     DELETE FROM routeairline AS ra WHERE ra.routeID = OLD.routeID;
+
+    -- Deletes needed because route is also referenced in table flight
+    DELETE FROM flight_flightattendant AS ffa WHERE ffa.flightID IN (
+        SELECT f.flightID FROM flight AS f WHERE f.routeID = OLD.routeID);
+    DELETE FROM flightluggagehandler AS flh WHERE flh.flightID IN (
+        SELECT f.flightID FROM flight AS f WHERE f.routeID = OLD.routeID);
+    -- Luggage
+    DELETE FROM handluggage AS hl WHERE hl.handluggageID IN (
+        SELECT l.luggageID FROM luggage AS l, flight AS f WHERE f.routeID = OLD.routeID AND f.flightID = l.flightID);
+    DELETE FROM specialobjects AS so WHERE so.specialobjectID IN (
+        SELECT l.luggageID FROM luggage AS l, flight AS f WHERE f.routeID = OLD.routeID AND f.flightID = l.flightID);
+    DELETE FROM checkedluggage AS cl WHERE cl.checkedluggageID IN (
+        SELECT l.luggageID FROM luggage AS l, flight AS f WHERE f.routeID = OLD.routeID AND f.flightID = l.flightID);
+    DELETE FROM lostobject AS lo WHERE lo.lostObjectID IN (
+        SELECT l.luggageID FROM luggage AS l, flight AS f WHERE f.routeID = OLD.routeID AND f.flightID = l.flightID);
+    DELETE FROM luggage AS l WHERE l.flightID IN (
+        SELECT f.flightID FROM flight AS f WHERE f.routeID = OLD.routeID);
+    -- FlightTickets
+    DELETE FROM refund AS r WHERE r.flightTicketID IN (
+        SELECT ft.flightTicketID FROM flighttickets AS ft, flight AS f WHERE f.routeID = OLD.routeID AND f.flightID = ft.flightID);
+    DELETE FROM checkin AS c WHERE c.flightTicketID IN (
+        SELECT ft.flightTicketID FROM flighttickets AS ft, flight AS f WHERE f.routeID = OLD.routeID AND f.flightID = ft.flightID);
+
+    DELETE FROM flighttickets AS ft WHERE ft.flightID IN (
+        SELECT f.flightID FROM flight AS f WHERE f.routeID = OLD.routeID);
+    DELETE FROM flight AS f WHERE f.routeID = OLD.routeID;
 END $$
 
 DELIMITER ;
 
 -- /************ TRIGGER VALIDATION ************/
 
--- TODO: trigger 2.6 validation
+-- Activate trigger
+DELETE FROM route WHERE route.routeID = 3;
+DELETE FROM route WHERE route.routeID = 12;
+DELETE FROM route WHERE route.routeID = 45;
+
+-- Tables affected in the trigger
+SELECT * FROM RoutesCancelled;
+SELECT * FROM routeairline WHERE routeairline.routeID = 1;
 
 -- /*********************************************
 -- / TRIGGER 2.7
@@ -277,8 +318,8 @@ CREATE TABLE MechanicFirings (
 
 DELIMITER $$
 
-DROP TRIGGER IF EXISTS FiringsHistory $$
-CREATE TRIGGER FiringsHistory BEFORE DELETE ON mechanic
+DROP TRIGGER IF EXISTS FiringsReason $$
+CREATE TRIGGER FiringsReason BEFORE DELETE ON mechanic
 FOR EACH ROW
 BEGIN
     DECLARE mechanic_age INT DEFAULT 0;
@@ -306,7 +347,7 @@ BEGIN
 
     -- Delete other data from the fired mechanic (Maintenance and PieceMaintenance)
     -- First delete from PieceMaintenance as Maintenance hold id
-    DELETE FROM piecemaintenance AS pm WHERE pm.maintenanceID =
+    DELETE FROM piecemaintenance AS pm WHERE pm.maintenanceID IN
         (SELECT ma.maintenanceID FROM maintenance AS ma WHERE ma.mechanicID = OLD.mechanicID);
     DELETE FROM maintenance AS ma WHERE ma.mechanicID = OLD.mechanicID;
 END $$
@@ -315,7 +356,29 @@ DELIMITER ;
 
 -- /************ TRIGGER VALIDATION ************/
 
--- TODO: trigger 2.7 validation
+-- Activate trigger
+DELETE FROM mechanic WHERE mechanic.mechanicID = 15;    -- Retirement
+DELETE FROM mechanic WHERE mechanic.mechanicID = 264;   -- Not completing period
+DELETE FROM mechanic WHERE mechanic.mechanicID = 32;    -- No reason
+
+-- Tables affected in the trigger
+SELECT * FROM MechanicFirings;
+SELECT * FROM piecemaintenance AS pm WHERE pm.maintenanceID IN
+        (SELECT ma.maintenanceID FROM maintenance AS ma WHERE ma.mechanicID = 15);
+SELECT * FROM maintenance AS ma WHERE ma.mechanicID = 15;
+
+-- Mechanics older than 65
+SELECT
+    m.*,
+    TIMESTAMPDIFF(YEAR, p.born_date, CURDATE()) AS age
+FROM
+    mechanic AS m
+    INNER JOIN person AS p ON m.mechanicID = p.personID
+GROUP BY m.mechanicID
+HAVING age >= 65;
+
+-- Mechanics not completing the evaluation period
+SELECT * FROM maintenance AS ma GROUP BY mechanicID HAVING SUM(ma.duration) < 10;
 
 -- /*********************************************
 -- / TRIGGER 2.8
@@ -323,35 +386,42 @@ DELIMITER ;
 
 DROP TABLE IF EXISTS EnvironmentalReductions;
 CREATE TABLE EnvironmentalReductions (
-    route VARCHAR(255),
+    route VARCHAR(515),
     petrol_difference INT,
     update_date DATE
 );
 
 DELIMITER $$
 
--- WHEN (OLD.minimum_petrol > NEW.minimum_petrol)
-
 DROP TRIGGER IF EXISTS PetrolUpdate $$
 CREATE TRIGGER PetrolUpdate AFTER UPDATE ON route
 FOR EACH ROW
 BEGIN
-    INSERT INTO EnvironmentalReductions VALUES (
-        CONCAT(
-            (SELECT ap.name FROM airport AS ap WHERE ap.airportID = OLD.departure_airportID),
-            '-',
-            (SELECT ap.name FROM airport AS ap WHERE ap.airportID = OLD.destination_airportID)
-        ),
-        ABS(OLD.minimum_petrol - NEW.minimum_petrol),
-        CURDATE()
-    );
+    IF OLD.minimum_petrol > NEW.minimum_petrol THEN
+        INSERT INTO EnvironmentalReductions VALUES (
+            CONCAT(
+                (SELECT ap.name FROM airport AS ap WHERE ap.airportID = OLD.departure_airportID),
+                ' -> ',
+                (SELECT ap.name FROM airport AS ap WHERE ap.airportID = OLD.destination_airportID)
+            ),
+            OLD.minimum_petrol - NEW.minimum_petrol,
+            CURDATE()
+        );
+    END IF;
 END $$
 
 DELIMITER ;
 
 -- /************ TRIGGER VALIDATION ************/
 
--- TODO: trigger 2.8 validation
+-- Activate trigger (only if set petrol is lower than actual)
+UPDATE route SET minimum_petrol = 8567 WHERE routeID = 4;     -- Petrol increased, ignored
+UPDATE route SET minimum_petrol = 4200 WHERE routeID = 8;     -- Petrol decreased, record changes
+UPDATE route SET distance = 473 WHERE routeID = 10;           -- distance changed, ignored
+UPDATE route SET minimum_petrol = 7298 WHERE routeID = 15;    -- Petrol decreased, record changes
+
+-- Tables affected in the trigger
+SELECT * FROM EnvironmentalReductions;
 
 -- /*********************************************
 -- / EVENT 2.9
@@ -359,8 +429,9 @@ DELIMITER ;
 
 DROP TABLE IF EXISTS MaintenanceCost;
 CREATE TABLE MaintenanceCost (
-    plane_name VARCHAR(255),
-    annual_cost FLOAT
+    planeID BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    annual_cost BIGINT,
+    year INT
 );
 
 DROP EVENT IF EXISTS AnnualCosts;
@@ -369,19 +440,35 @@ COMMENT 'Records the annual maintenance cost of each plane'
 DO
     INSERT INTO MaintenanceCost
     SELECT
-        pt.type_name,
-        SUM(pi.cost)
+        pl.planeID,
+        IFNULL(SUM(pi.cost), 0),
+        YEAR(CURDATE()) AS year
     FROM
         plane AS pl
-        INNER JOIN planetype AS pt ON pl.planetypeID = pt.planetypeID
-
         INNER JOIN maintenance AS ma ON pl.planeID = ma.planeID
-        INNER JOIN piecemaintenance AS pm ON ma.maintenanceID = pm.maintenanceID
-        INNER JOIN piece AS pi ON pm.pieceID = pi.pieceID
+        LEFT JOIN piecemaintenance AS pm ON ma.maintenanceID = pm.maintenanceID
+        LEFT JOIN piece AS pi ON pm.pieceID = pi.pieceID
     WHERE
         YEAR(ma.date) = YEAR(CURDATE())
     GROUP BY pl.planeID;
 
 -- /************* EVENT VALIDATION *************/
 
--- TODO: event 2.9 validation
+-- Maintenance with no cost, no pieces replaced
+SELECT ma.*
+FROM maintenance AS ma
+LEFT JOIN piecemaintenance AS p ON ma.maintenanceID = p.maintenanceID
+WHERE p.maintenanceID IS NULL;
+
+-- Update maintenance so that they occur 2021 (Before run event)
+UPDATE maintenance SET date = '2021-01-02' WHERE maintenanceID = 1;
+UPDATE maintenance SET date = '2021-03-10' WHERE maintenanceID = 2;
+UPDATE maintenance SET date = '2021-04-24' WHERE maintenanceID = 3;
+UPDATE maintenance SET date = '2021-04-12' WHERE maintenanceID = 4;
+
+UPDATE maintenance SET date = '2021-05-19' WHERE maintenanceID = 282;  -- Cost 0
+UPDATE maintenance SET date = '2021-05-31' WHERE maintenanceID = 1074; -- Cost 0
+
+SELECT * FROM MaintenanceCost;
+
+SHOW EVENTS;
