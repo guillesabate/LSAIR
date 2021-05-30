@@ -49,5 +49,5 @@ RETURN path
 
 Display the routes between “Laos” and “South Korea”.
 
-MATCH path = (l:Country {name: 'Laos'}) -[*]- (sk:Country {name: 'South Korea'})
+MATCH path = ((l:Country {name: 'Laos'}) -[*]- (sk:Country {name: 'South Korea'}))
 RETURN path
