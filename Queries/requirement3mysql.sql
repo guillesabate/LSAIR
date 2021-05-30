@@ -1,6 +1,10 @@
+///////////////////////////////
+
 ---------------------------------------
 		---DATABASES S2---
 ---------------------------------------
+
+///////////////////////////////
 
 1-
 SELECT c.name as "company name", co.name as "country name", co.countryID, f.countryID
@@ -34,11 +38,13 @@ GROUP BY c.companyID, c2.companyID;
 
 3-
 SELECT c.name as "company name", MAX(r.score)
-FROM company as c, restaurant as r, waitingarea as wa
-WHERE c.companyID = wa.companyID AND r.restaurantID = wa.waitingAreaID
+FROM company as c
+	JOIN waitingarea as wa ON c.companyID = wa.companyID
+	JOIN restaurant as r ON r.restaurantID = wa.waitingAreaID
 GROUP BY c.companyID
 order by count(wa.waitingAreaID) desc
 LIMIT 1;
+
 
 4-
 SELECT c.name as "company name", c.company_value as "company value"
@@ -171,3 +177,27 @@ DO BEGIN
 				 SELECT  foodId, expiration_date, CURDATE() from food where expiration_date >= CURDATE();
 END $$
 DELIMITER ;
+
+
+//Neo4j
+
+//1-
+match (n:FlightAttendant)-->(f:Flight)<--(n2:FlightAttendant) return n, n2, f
+
+//2-
+match (n:FlightAttendant)-->(l:Language)<--(n2:FlightAttendant), (n)-->(f:Flight)-->(a:Airport)<--(f2:Flight)<--(n2) where f <> f2 return n, l, n2, a, f2, f
+
+//3- 
+match (n:FlightAttendant)-->(f:Flight)<--(n2:Pilot), (n)-->(l:Language)<--(n2) where (n.years_working - n2.years_working < 10) return n, f, n2, l
+
+//4-
+match (n:FlightAttendant)-->(f:Flight)<--(n2:Pilot), (n)-->(l:Language)<--(n2) return count(*) as affairs, l as language order by count(*) desc
+
+//5-
+match (n:FlightAttendant)-->(f:Flight)<--(n2:Pilot)-->(f2:Flight)<--(n3:FlightAttendant), (n)-->(f3)<--(n3), (n)-->(l:Language)<--(n2)-->(l2:Language)<--(n3) return n, n2, n3
+
+//6-
+
+
+
+
