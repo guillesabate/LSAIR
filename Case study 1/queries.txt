@@ -28,7 +28,7 @@ ORDER BY count(*) DESC
 Make a list of planes and the number of countries that have been if they have been in an 
 airport with an altitude value more than 100
 
-MATCH (c:Country) <-[:INCOUNTRY]- (:City) <-[:LOCATION]- (:Airport) -[:ROUTE]-> (p:Plane)
+MATCH (c:Country) <-[:IN_COUNTRY]- (:City) <-[:LOCATION]- (:Airport) -[:ROUTE]-> (p:Plane)
 WHERE a.altitude > 100
 RETURN p.planeID AS plane, count(DISTINCT c) AS numCountries 
 
