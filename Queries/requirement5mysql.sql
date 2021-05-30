@@ -1,17 +1,20 @@
 1--
 
 SELECT a.name as 'Airlane Name', count(pa.passengerID) as 'passengers'
-FROM airline AS a 
+FROM airline AS a
 JOIN plane AS p on a.airlineID = p.airlineID
-JOIN flight AS f on p.planeId = f.planeID 
+JOIN flight AS f on p.planeId = f.planeID
 JOIN flighttickets AS fl on f.flightID = fl.flightID
 JOIN passenger AS pa on fl.passengerID = pa.passengerID
 GROUP BY a.name
-HAVING COUNT((SELECT pa2.passengerid 
-FROM Airline as a2, passenger as pa2, flighttickets as fl2, plane as p2, flight as f2
-WHERE  a2.airlineid =p2.airlineid AND f2.planeid=p2.planeid  AND f2.flightid=fl2.flightid 
-AND pa2.passengerid=fl2.passengerid  AND fl2.flightticketID=fl.flightticketid
-AND fl2.flightticketid NOT IN (SELECT ck.flightticketid FROM checkin as ck)))/count(pa.passengerID) >=0.1;
+HAVING COUNT((SELECT pa2.passengerid
+FROM Airline as a2 JOIN plane as p2 on a2.airlineid =p2.airlineid
+JOIN flight as f2 ON f2.planeid=p2.planeid
+JOIN flighttickets as fl2 ON  f2.flightid=fl2.flightid AND fl2.flightticketID=fl.flightticketid
+JOIN  passenger as pa2 ON pa2.passengerid=fl2.passengerid
+WHERE  fl2.flightticketid NOT IN (SELECT ck.flightticketid FROM checkin as ck)))/count(pa.passengerID) >=0.1;
+
+
 
 2--
 SELECT ABS(cdep.timezone-carr.timezone) as "time zone difference in hours", COUNT( DISTINCT lo.lostobjectid) as lostobjects
